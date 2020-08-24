@@ -1,13 +1,16 @@
 import discord
 from discord.ext import commands
 import json
+from spreadsheet import Spreadsheet
 
 with open('token.json') as f:
     TOKEN = json.load(f)["token"]
     
 bot = commands.Bot(command_prefix='.')
+bot.spreadsheet = Spreadsheet()
 bot.load_extension('timer')
 bot.load_extension('questions')
+bot.load_extension('quotes')
 
 @bot.event
 async def on_error(event, *args, **kwargs):

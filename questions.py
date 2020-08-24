@@ -3,14 +3,14 @@ from discord.ext import commands
 class Questions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.spreadsheet = bot.spreadsheet
 
     @commands.command(name='ask', help='Generate a question with the given spiciness (1=bland, 5=spicy)')
     async def ask_question(self, ctx, spiciness: int):
         if spiciness < 1 or spiciness > 5:
             await ctx.send(f"Spiciness '{spiciness}' is out of range!!")
             return
-        question = ask_question(spiciness)
-        question = "How are you?"
+        question, spiciness = self.spreadsheet.get_question(spiciness)
         await ctx.send(f"[{spiciness}] {question}")
 
     @commands.command(name='add_question',
