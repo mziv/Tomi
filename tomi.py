@@ -15,7 +15,19 @@ bot.load_extension('quotes')
 @bot.event
 async def on_error(event, *args, **kwargs):
     print("EVENT:", event)
-        
+    
+@bot.command(name='cancel', help='Cancel a given timer')
+async def cancel_timer(ctx, idx: int):
+    if not idx in timer_dict:
+        await ctx.send('That timer and I? We\'ve never met.')
+        return
+    del timer_dict[idx]
+    await ctx.send(f"Timer {idx} cancelled!")
+
+@bot.command(name='birthday', help='celebrate someone special')
+async def birthday(ctx):
+    await ctx.send('HAPPY BIRTHDAY RACHEL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
 @bot.event
 async def on_member_join(member):
     await member.create_dm()
