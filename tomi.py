@@ -11,28 +11,17 @@ bot.spreadsheet = Spreadsheet()
 bot.load_extension('timer')
 bot.load_extension('questions')
 bot.load_extension('quotes')
+bot.load_extension('feedback')
 
 @bot.event
 async def on_error(event, *args, **kwargs):
     print("EVENT:", event)
-    
-@bot.command(name='cancel', help='Cancel a given timer')
-async def cancel_timer(ctx, idx: int):
-    if not idx in timer_dict:
-        await ctx.send('That timer and I? We\'ve never met.')
-        return
-    del timer_dict[idx]
-    await ctx.send(f"Timer {idx} cancelled!")
-
-@bot.command(name='birthday', help='celebrate someone special')
-async def birthday(ctx):
-    await ctx.send('HAPPY BIRTHDAY RACHEL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
 @bot.event
 async def on_member_join(member):
     await member.create_dm()
     await member.dm_channel.send(
-        f'Hi {member.name}, welcome to my Discord server!'
+        f'Hi {member.name}, welcome to the co-op! Please make sure to set your nickname by right-clicking your name in the online list in the server and clicking "Change Nickname".'
     )
 
 @bot.event
