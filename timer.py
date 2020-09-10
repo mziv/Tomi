@@ -1,5 +1,6 @@
 from discord.ext import commands
 from datetime import datetime
+import asyncio
 
 class Timer(commands.Cog):
     def __init__(self, bot):
@@ -17,27 +18,27 @@ class Timer(commands.Cog):
         response = "Starting timer {} for {} min...".format(self.current_idx, num_min)
         await ctx.send(response)
 
-        timer_dict[self.current_idx] = dict(start_time=datetime.now(),
+        self.timer_dict[self.current_idx] = dict(start_time=datetime.now(),
                                             duration=num_min)
 
         async def timer(idx):
             await asyncio.sleep(60*num_min)
-            if idx in timer_dict:
+            if idx in self.timer_dict:
                 await ctx.send(f"Timer {idx} finished!")
-                del timer_dict[idx]
+                del self.timer_dict[idx]
 
         self.bot.loop.create_task(timer(self.current_idx))
 
     @commands.command(name='check', help='Check how long is left on the timer')
-    async def check_timer(ctx, idx: int):
+    async def check_timer(self, ctx, idx: int):
         if idx in self.timer_dict:
-            time_remaining = self.timer_dict[idx]['duration'] - (datetime.now() - timer_dict[idx]['start_time']).seconds//60 - 1
+            time_remaining = self.timer_dict[idx]['duration'] - (datetime.now() - self.timer_dict[idx]['start_time']).seconds//60 - 1
             await ctx.send(f"{time_remaining} minutes left!")
         else:
             await ctx.send(f"Timer {idx} isn't running.")
 
     @commands.command(name='cancel', help='Cancel a given timer')
-    async def cancel_timer(ctx, idx: int):
+    async def cancel_timer(self, ctx, idx: int):
         if not idx in self.timer_dict:
             await ctx.send('That timer and I? We\'ve never met.')
             return
