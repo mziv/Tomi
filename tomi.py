@@ -1,10 +1,11 @@
 import discord
 from discord.ext import commands
-import json
+import os
+from dotenv import load_dotenv
 from spreadsheet import Spreadsheet
 
-with open('token.json') as f:
-    TOKEN = json.load(f)["token"]
+load_dotenv()
+TOKEN = os.getenv('DISCORD_TOKEN')
     
 bot = commands.Bot(command_prefix='.')
 bot.spreadsheet = Spreadsheet()
