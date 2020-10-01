@@ -13,6 +13,8 @@ bot.load_extension('timer')
 bot.load_extension('questions')
 bot.load_extension('quotes')
 bot.load_extension('feedback')
+bot.load_extension('RNG')
+bot.load_extension('members')
 
 @bot.event
 async def on_error(event, *args, **kwargs):
