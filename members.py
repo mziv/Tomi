@@ -18,7 +18,7 @@ class Members(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.df = pd.read_csv("./memberInfo.csv", index_col='Nickname')
-        self.invite_delay_hours = 0.001
+        self.invite_delay_hours = 24
         self.live_invites = set()
 
     @commands.command(name='cancel_invite', help='Cancel an invite, preventing a link from being generated.')        
