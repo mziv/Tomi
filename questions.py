@@ -16,10 +16,12 @@ class Questions(commands.Cog):
     @commands.command(name='add_question',
                  help='Submit a question along with its spice level (1=bland, 5=spicy)')
     async def add_question(self, ctx, question: str, spiciness: int):
-        success = add_question(ctx.author, question, spiciness)
-        if success:
-            await ctx.send("Question added!")
-        else:
+        if spiciness < 1 or spiciness > 5:
+            await ctx.send('Spiciness should be in the range 1-5!')
+            return
+
+        success = self.spreadsheet.add_question(ctx.author, question, spiciness)
+        if not success:
             await ctx.send("There was an error adding the question...")
     
 def setup(bot):
