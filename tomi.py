@@ -3,6 +3,7 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 from spreadsheet import Spreadsheet
+from members import autoplay_playlist_helper
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -78,5 +79,29 @@ async def on_command_error(ctx, error):
         await ctx.send('This command requires an argument.')
     else: 
         print(error)
-    
+
+
+@bot.event
+async def on_voice_state_update(member, prev, cur):
+    ### Note: does not work right now. Supposed to auto-play playlist if user enters the library, has a playlist registered, and has auto-play on
+    if cur.channel.name != "Library" or prev.channel.name == "Library":
+        return
+
+    for guild in bot.guilds:
+        if guild.name == "Bot Testing Server":
+            # Temp channel
+            text_channel = bot.get_channel(752221173546221598)
+            print("asdf")
+            ### this part does not work!
+            print(guild.voiceConnection)
+            print("fdsa")
+            await autoplay_playlist_helper(text_channel, cur.channel, member, guild.voiceConnection)
+            return
+
+        elif guild.name == "The Co-op":
+            # Library
+            text_channel = bot.get_channel(708882378877173811) 
+            await autoplay_playlist_helper(text_channel, cur.channel, member, guild.voiceConnection)
+            return
+        
 bot.run(TOKEN)
