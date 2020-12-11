@@ -54,7 +54,7 @@ class Members(commands.Cog):
         channel = discord.utils.get(ctx.guild.channels, name='welcome')
         custom_link = await channel.create_invite(unique=True)
         await ctx.send(f"I'm now inviting {user_name}! <@{ctx.author.id}>, I'll be sending you a custom link to forward to {user_name}")
-        await ctx.author.send(f"Here is the link for inviting {user_name}!: {custom_link}")
+        await ctx.author.send(f"Here is the link for inviting {user_name}: {custom_link}")
         self.live_invites.remove(user_name)
 
         # Cache invite information for role assignment logic when the new member joins.
