@@ -9,3 +9,7 @@ Download the tokens from the Google Drive folder. To get access, contact one of 
 
 Then install requirements using `pip install -r requirements.txt` (or `conda env create --file requirements.txt` if you are using conda).
 
+Some helpful commands:
+`discord.utils.get(ctx.guild.roles, name="name_of_role")`: get a role
+`ctx.guild.members`: get a list of members for a server
+`member.roles`: get a list of roles for a member
