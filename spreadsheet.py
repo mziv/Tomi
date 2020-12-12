@@ -28,10 +28,10 @@ class Spreadsheet():
         
         row_idx = 2
         for user in tracked_users[0]:
-            row_idx += 1
             if user == inviter:
                 user_tracked = True
                 break
+            row_idx += 1
 
         if not user_tracked:
             range_name = f'Family Tree!A{row_idx}:B{row_idx}'

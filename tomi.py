@@ -20,10 +20,11 @@ bot.load_extension('quotes')
 bot.load_extension('feedback')
 bot.load_extension('RNG')
 bot.load_extension('members')
+bot.load_extension('events')
 
-@bot.event
-async def on_error(event, *args, **kwargs):
-    print("EVENT:", event)
+#@bot.event
+#async def on_error(event, *args, **kwargs):
+#    print("EVENT:", event)
 
 @bot.event
 async def on_member_join(member):
@@ -32,6 +33,7 @@ async def on_member_join(member):
     # Check which invite code has gone up in uses since we last cached.
     async def get_invite_code_for_user():
         invites_after = await member.guild.invites()
+        if member.guild.id not in bot.invite_cache: return None
         for invite in invites_after:
             cached_invite = bot.invite_cache[member.guild.id].get(invite.code)
             if cached_invite is not None and invite.uses > cached_invite.uses:

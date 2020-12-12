@@ -54,10 +54,6 @@ async def play_playlist_helper(channel, voice_channel, user, df):
     await channel.send("Note: Groovy ignores other bots, so please copy/paste the command below:")
     await channel.send(f"-play {playlist}")
 
-
-
-SERVER_ID = 744657737027158166
-    
 class Members(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
