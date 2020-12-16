@@ -1,4 +1,5 @@
 import discord
+import logging
 from discord.ext import commands
 import os
 import json
@@ -6,6 +7,13 @@ from spreadsheet import Spreadsheet
 from members import autoplay_playlist_helper
 import traceback
 import argparse
+import time
+
+# Save log data to a file and print to console.
+if not os.path.isdir('logs'): os.mkdir('logs')
+log_path = os.path.join('logs', time.strftime("%Y%m%d-%H%M%S")+'.log')
+logging.basicConfig(filename=log_path, level=logging.INFO)
+logging.getLogger().addHandler(logging.StreamHandler())
 
 # To get these files, please download them from the Drive.
 production_token_path = 'tomi_production_token.json'
@@ -24,7 +32,7 @@ if not os.path.isfile(token_path):
 with open(token_path) as f:
     token = json.load(f)['token']
 os.environ['TOMI_MODE'] = 'production' if args.production else 'test'
-print(f"Tomi is now running in {os.getenv('TOMI_MODE')} mode!")
+logger.info(f"Tomi is now running in {os.getenv('TOMI_MODE')} mode!")
 
 intents = discord.Intents.all()
 
@@ -42,8 +50,7 @@ bot.load_extension('events')
 
 @bot.event
 async def on_error(event, *args, **kwargs):
-    print(traceback.format_exc())
-    print("EVENT:", event)
+    logger.error(traceback.format_exc())
 
 @bot.event
 async def on_member_join(member):
@@ -53,8 +60,9 @@ async def on_member_join(member):
     async def get_invite_code_for_user():
         invites_after = await member.guild.invites()
         if member.guild.id not in bot.invite_cache:
-            print("Invite cache: ", bot.invite_cache)
-            print("Current invites: ", invites_after)
+            logger.error("Invite code not found for user!")
+            logger.info("Invite cache: ", bot.invite_cache)
+            logger.info("Current invites: ", invites_after)
             return None
         for invite in invites_after:
             cached_invite = bot.invite_cache[member.guild.id].get(invite.code)
@@ -69,12 +77,12 @@ async def on_member_join(member):
     
     # If this user was invited permanently, go ahead and make them a resident.
     used_invite_code = await get_invite_code_for_user()
-    print(f"{member.name} has joined with {used_invite_code}")
+    logger.info(f"{member.name} has joined with {used_invite_code}")
     
     for user, invite_code in bot.resident_invites:
         # Check if this invite code was one of the ones meant for residents.
         if used_invite_code == invite_code:
-            print("The invite code is for residents")
+            logger.info("The invite code is for residents")
             # Delete invite now that it isn't needed (and update cache)
             bot.resident_invites.remove((user, invite_code))
             await bot.invite_cache[member.guild.id][invite_code].delete()
@@ -97,14 +105,14 @@ async def on_member_join(member):
 
 @bot.event
 async def on_ready():
-    print(f'{bot.user} has connected to Discord!')
+    logging.info(f'{bot.user} has connected to Discord!')
 
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.MissingRequiredArgument):
         await ctx.send('This command requires an argument.')
     else:
-        traceback.print_exception(type(error), error, error.__traceback__)
+        logger.error(traceback.format_exc())
 
 @bot.event
 async def on_voice_state_update(member, prev, cur):
