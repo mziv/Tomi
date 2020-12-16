@@ -1,12 +1,30 @@
 import discord
 from discord.ext import commands
 import os
-from dotenv import load_dotenv
+import json
 from spreadsheet import Spreadsheet
 from members import autoplay_playlist_helper
+import traceback
+import argparse
 
-load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
+# To get these files, please download them from the Drive.
+production_token_path = 'tomi_production_token.json'
+test_token_path = 'tomi_test_token.json'
+
+# Determine if we want to run Tomi (production) or TestTomi (test).
+parser = argparse.ArgumentParser()
+parser.add_argument('--production', action='store_true', default=False)
+args = parser.parse_args()
+token_path = production_token_path if args.production else test_token_path
+
+# Load the appropriate token, if possible.
+if not os.path.isfile(token_path):
+    raise Exception(f"{token_path} not found!")
+
+with open(token_path) as f:
+    token = json.load(f)['token']
+os.environ['TOMI_MODE'] = 'production' if args.production else 'test'
+print(f"Tomi is now running in {os.getenv('TOMI_MODE')} mode!")
 
 intents = discord.Intents.all()
 
@@ -22,9 +40,10 @@ bot.load_extension('RNG')
 bot.load_extension('members')
 bot.load_extension('events')
 
-#@bot.event
-#async def on_error(event, *args, **kwargs):
-#    print("EVENT:", event)
+@bot.event
+async def on_error(event, *args, **kwargs):
+    print(traceback.format_exc())
+    print("EVENT:", event)
 
 @bot.event
 async def on_member_join(member):
@@ -33,7 +52,10 @@ async def on_member_join(member):
     # Check which invite code has gone up in uses since we last cached.
     async def get_invite_code_for_user():
         invites_after = await member.guild.invites()
-        if member.guild.id not in bot.invite_cache: return None
+        if member.guild.id not in bot.invite_cache:
+            print("Invite cache: ", bot.invite_cache)
+            print("Current invites: ", invites_after)
+            return None
         for invite in invites_after:
             cached_invite = bot.invite_cache[member.guild.id].get(invite.code)
             if cached_invite is not None and invite.uses > cached_invite.uses:
@@ -47,10 +69,12 @@ async def on_member_join(member):
     
     # If this user was invited permanently, go ahead and make them a resident.
     used_invite_code = await get_invite_code_for_user()
+    print(f"{member.name} has joined with {used_invite_code}")
+    
     for user, invite_code in bot.resident_invites:
-
         # Check if this invite code was one of the ones meant for residents.
         if used_invite_code == invite_code:
+            print("The invite code is for residents")
             # Delete invite now that it isn't needed (and update cache)
             bot.resident_invites.remove((user, invite_code))
             await bot.invite_cache[member.guild.id][invite_code].delete()
@@ -79,15 +103,37 @@ async def on_ready():
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.MissingRequiredArgument):
         await ctx.send('This command requires an argument.')
-    else: 
-        print(error)
-
+    else:
+        traceback.print_exception(type(error), error, error.__traceback__)
 
 @bot.event
 async def on_voice_state_update(member, prev, cur):
+    '''
+    # Entering a voice channel.
+    if cur.channel is not None:
+
+        # Leaving a voice
+        else:
+            
+        
+    
+    server = cur.channel.guild if cur.channel else prev.channel.guild
+
+    await guild.create_role(name="role name")
+    
+    if 
+    
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(read_messages=False),
+        guild.me: discord.PermissionOverwrite(read_messages=True)
+    }
+
+    await server.create_text_channel(cur.channel.name)
+    '''
     ### Note: does not work right now. Supposed to auto-play playlist if user enters the library, has a playlist registered, and has auto-play on
-    if cur.channel.name != "Library" or prev.channel.name == "Library":
-        return
+    return
+    #if cur.channel.name != "Library" or prev.channel.name == "Library":
+    #return
 
     for guild in bot.guilds:
         if guild.name == "Bot Testing Server":
@@ -106,4 +152,4 @@ async def on_voice_state_update(member, prev, cur):
             await autoplay_playlist_helper(text_channel, cur.channel, member, guild.voiceConnection)
             return
         
-bot.run(TOKEN)
+bot.run(token)

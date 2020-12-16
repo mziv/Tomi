@@ -61,8 +61,15 @@ class Members(commands.Cog):
         self.invite_delay_hours = 24
         self.live_invites = set()
 
-    @commands.command(name='cancel_invite', help='Cancel an invite, preventing a link from being generated.')        
+    @commands.command(name='cancel_invite', help='[admin] Cancel an invite, preventing a link from being generated.')        
     async def cancel_invite(self, ctx, *args):
+        # Check the user has permissions to call this function.
+        admin_role = discord.utils.get(ctx.guild.roles, name="admin")
+        if admin_role not in ctx.author.roles:
+            await ctx.send("You need the admin role to run this command!")
+            return
+
+        # Prevent the link from being generated.
         user_name = ' '.join(args)
         try:
             self.live_invites.remove(user_name)
@@ -70,9 +77,26 @@ class Members(commands.Cog):
             await ctx.send(f"'{user_name}' was not being invited. Maybe the spelling/capitalization is off?")
         else:    
             await ctx.send(f"{user_name} is no longer being invited.")
-        
+
+    async def _invite(self, ctx, user_name):
+        # Generate an invite link.
+        channel = discord.utils.get(ctx.guild.channels, name='welcome')
+        custom_link = await channel.create_invite(unique=True)
+        print(f"Generated link {custom_link}")
+        await ctx.send(f"I'm now inviting {user_name}! <@{ctx.author.id}>, I'll be sending you a custom link to forward to {user_name}")
+        await ctx.author.send(f"Here is the link for inviting {user_name}: {custom_link}")
+        if user_name in self.live_invites: self.live_invites.remove(user_name)
+
+        # Cache invite information for role assignment logic when the new member joins.
+        self.bot.resident_invites.add((ctx.author, custom_link.code))
+        if ctx.guild.id not in self.bot.invite_cache:
+            self.bot.invite_cache[ctx.guild.id] = {}
+        invites = await ctx.guild.invites()
+        for invite in invites:
+            self.bot.invite_cache[ctx.guild.id][invite.code] = invite
+            
     @commands.command(name='invite', help='Propose inviting a certain person')        
-    async def invite(self, ctx, *args):
+    async def begin_invite(self, ctx, *args):
         """
         Start the invite process for a certain person. This starts a timer of invite_delay_hours, then after the
         timer is up, generates a custom link to send to the person who called this command.
@@ -90,20 +114,24 @@ class Members(commands.Cog):
         # If the invite has been cancelled, don't do anything.
         if user_name not in self.live_invites: return
 
-        # Since the invite wasn't cancelled, go ahead and generate an invite link.
-        channel = discord.utils.get(ctx.guild.channels, name='welcome')
-        custom_link = await channel.create_invite(unique=True)
-        await ctx.send(f"I'm now inviting {user_name}! <@{ctx.author.id}>, I'll be sending you a custom link to forward to {user_name}")
-        await ctx.author.send(f"Here is the link for inviting {user_name}: {custom_link}")
-        self.live_invites.remove(user_name)
+        # Handle the actual generation of the invite link.
+        await self._invite(ctx, user_name)
 
-        # Cache invite information for role assignment logic when the new member joins.
-        self.bot.resident_invites.add((ctx.author, custom_link.code))
-        self.bot.invite_cache[ctx.guild.id] = {}
-        invites = await ctx.guild.invites()
-        for invite in invites:
-            self.bot.invite_cache[ctx.guild.id][invite.code] = invite
+    @commands.command(name='rush_invite', help='[admin] Directly generate a link to invite a resident')        
+    async def rush_invite(self, ctx, *args):
+        """
+        Generate a link to invite a resident without a comment period.
+        usage: .invite Anna Zeng
+        """
+        # Check the user has permissions to call this function.
+        admin_role = discord.utils.get(ctx.guild.roles, name="admin")
+        if admin_role not in ctx.author.roles:
+            await ctx.send("You need the admin role to run this command!")
+            return
 
+        # Handle the actual generation of the invite link.
+        user_name = ' '.join(args)
+        await self._invite(ctx, user_name)
         
     ## Note: if we have duplicate nicknames this will be bad lol
     @commands.command(name='set_email', help='Lets Tomi know what your email is! Use: set_email bob@gmail.com')
