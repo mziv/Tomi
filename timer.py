@@ -25,6 +25,7 @@ class Timer(commands.Cog):
             await asyncio.sleep(60*num_min)
             if idx in self.timer_dict:
                 await ctx.send(f"Timer {idx} finished!")
+                await self.bot.get_cog('Events').dog(ctx, "picture")
                 del self.timer_dict[idx]
 
         self.bot.loop.create_task(timer(self.current_idx))
