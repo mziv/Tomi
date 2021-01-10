@@ -122,7 +122,58 @@ class Members(commands.Cog):
         # Mark the given user as no longer inactive.
         if member in self.inactive_members[member.guild.id]:
             self.inactive_members[member.guild.id].remove(member)
-        
+
+    @commands.Cog.listener()
+    async def on_member_join(member):
+        await member.create_dm()
+
+        # Check which invite code has gone up in uses since we last cached.
+        async def get_invite_code_for_user():
+            invites_after = await member.guild.invites()
+            if member.guild.id not in bot.invite_cache:
+                logging.error("Invite code not found for user!")
+                logging.info("Invite cache: ", bot.invite_cache)
+                logging.info("Current invites: ", invites_after)
+                return None
+            for invite in invites_after:
+                cached_invite = bot.invite_cache[member.guild.id].get(invite.code)
+                if cached_invite is not None and invite.uses > cached_invite.uses:
+                    return invite.code
+
+            return None
+
+        resident_msg = "Welcome to the co-op! You're now a permanent resident, so go ahead and check out the #welcome channel to get all the info you need to get settled in."
+
+        visitor_msg = "Welcome to the co-op! We're excited for your visit :) You're welcome to poke around until your host ends the day's event. If you're interested in living with us, just ask your host about it and they can tell you more."
+
+        # If this user was invited permanently, go ahead and make them a resident.
+        used_invite_code = await get_invite_code_for_user()
+        logging.info(f"{member.name} has joined with {used_invite_code}")
+
+        for user, invite_code in bot.resident_invites:
+            # Check if this invite code was one of the ones meant for residents.
+            if used_invite_code == invite_code:
+                logging.info("The invite code is for residents")
+                # Delete invite now that it isn't needed (and update cache)
+                bot.resident_invites.remove((user, invite_code))
+                await bot.invite_cache[member.guild.id][invite_code].delete()
+                bot.invite_cache[member.guild.id] = {}
+                invites = await member.guild.invites()
+                for invite in invites:
+                    bot.invite_cache[member.guild.id][invite.code] = invite
+
+                # Give user the resident role and welcome them appropriately.
+                role = discord.utils.get(member.guild.roles, name="resident")
+                await member.add_roles(role)
+                await member.dm_channel.send(resident_msg)
+
+                # Track who invited the user.
+                bot.spreadsheet.add_invitee(user, member)
+                return
+
+        # Send just the visitor message if the user shouldn't become a resident.
+        await member.dm_channel.send(visitor_msg)
+            
     @commands.command(name='cancel_invite', help='[admin] Cancel an invite, preventing a link from being generated.')        
     async def cancel_invite(self, ctx, *args):
         # Check the user has permissions to call this function.
