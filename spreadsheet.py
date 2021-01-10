@@ -6,7 +6,7 @@ import os
 from functools import partial
 
 class Spreadsheet():
-    def __init__(self):
+    def __init__(self, is_production_mode):
         # Load credentials from file.
         scopes = [
             'https://www.googleapis.com/auth/drive', 
@@ -18,7 +18,7 @@ class Spreadsheet():
         self.service = discovery.build('sheets', 'v4', credentials=credentials)
         
         # Get the appropriate spreadsheet (both of which must be shared with the Google service account).
-        if os.getenv('TOMI_MODE') == 'production':
+        if is_production_mode:
             self.spreadsheet_id = '1dsdUbH3H73i4nXWs-_kaU5VhK9VTo_hK4lxSPeCoHTY'
         else:
             self.spreadsheet_id = '1P8hphXac7T_bS6WPc944fNAVQJjWajSQ8j4s2jyw05k'
@@ -47,7 +47,22 @@ class Spreadsheet():
         range_name = f'Family Tree!A{row_idx}:B{row_idx}'
         self.update(range=range_name, valueInputOption='RAW',
                     body=dict(values=[[invitee, inviter]])).execute()
-            
+
+    def get_inviter(self, invitee_id):
+        """
+        Get the member ID for the user who most recently invited the given 
+        "invitee." We're assuming the spreadsheet is of the form:
+         Invitee   | Inviter
+         ---------------------
+         Name (ID) | Name (ID)
+        """
+        # Convert the spreadsheet to a pandas dataframe for easier processing.
+        df = self.spreadsheet_to_pandas('Family Tree', 'A', 'B')
+        # Retrieve the "inviter" cell.
+        inviter = df[df['User'].str.contains(str(invitee_id))]['Inviter'].values
+        # Get the id from the parentheses (if available).
+        return int(inviter[0].split('(')[1][:-1]) if len(inviter) > 0 else None
+        
     def spreadsheet_to_pandas(self, name, start_col, end_col):
         """
         Reads the spreadsheet with the given name from start_col to end_col into a pandas DataFrame and returns it.
