@@ -3,6 +3,7 @@ import discord
 import pandas as pd 
 import os.path
 from random import randint
+from datetime import timedelta
 
 CSV_LOC = "./memberInfo.csv"
 import asyncio
@@ -57,10 +58,71 @@ async def play_playlist_helper(channel, voice_channel, user, df):
 class Members(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.bot.cache_dir = 'cache'
         self.df = pd.read_csv("./memberInfo.csv", index_col='Nickname')
         self.invite_delay_hours = 24
         self.live_invites = set()
+        self.inactive_members = {}
+        #self.ping_inactive_interval = timedelta(weeks=10)
+        self.ping_inactive_interval = timedelta(seconds=5)
 
+    async def ping_inactive(self, delay):
+        await asyncio.sleep(delay.seconds)
+        while True:
+            # Ping each person, waiting the appropriate interval between pings.
+            for guild_id, member_ids in self.inactive_members.items():
+                for member_id in member_ids:
+                    invitee = self.bot.get_user(member_id)
+                    inviter_id = self.bot.spreadsheet.get_inviter(member_id)
+                    if inviter_id is not None:
+                        invitee = self.bot.get_user(member_id)
+                        msg = f"It's been a while since {invitee.name} has been active in the co-op. They were originally invited by {inviter.name}. Would you mind checking in on them?"
+                        inviter = self.bot.get_user(inviter_id)
+                        # TODO(rachel-1): just DM myself for testing purposes.
+                        rachel = self.bot.get_user(691726683115487263)
+                        await rachel.create_dm()
+                        await rachel.dm_channel.send(msg)
+                        #await inviter.create_dm()
+                        #await inviter.dm_channel.send(msg)
+
+                    await asyncio.sleep(self.ping_inactive_interval.seconds)
+
+                # Reset the list of who is inactive.
+                guild = self.bot.get_guild(guild_id)
+                self.inactive_members[guild.id] = [member.id for member in guild.members]
+                
+        
+    @commands.Cog.listener()
+    async def on_ready(self):
+        data = self.bot.cache.get_data('members')
+        if 'inactive_members' in data:
+            self.inactive_members = {int(guild_id):member_ids for (guild_id, member_ids) in data['inactive_members'].items()}
+        else:
+            # Otherwise set all members as inactive and reset the timer.
+            for guild in self.bot.guilds:
+                self.inactive_members[guild.id] = [member.id for member in guild.members]
+
+        delay = data.get('time_till_ping_inactive', self.ping_inactive_interval)
+        self.bot.loop.create_task(self.ping_inactive(delay))
+
+
+    def __del__(self):
+        self.bot.cache.save_data('members',
+                        inactive_members=self.inactive_members)
+        
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # Mark the given user as no longer inactive.
+        if message.guild is not None:
+            if message.author.id in self.inactive_members[message.guild.id]:
+                self.inactive_members[message.guild.id].remove(message.author.id)
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, prev, cur):
+        # Mark the given user as no longer inactive.
+        if member in self.inactive_members[member.guild.id]:
+            self.inactive_members[member.guild.id].remove(member)
+        
     @commands.command(name='cancel_invite', help='[admin] Cancel an invite, preventing a link from being generated.')        
     async def cancel_invite(self, ctx, *args):
         # Check the user has permissions to call this function.
@@ -83,7 +145,7 @@ class Members(commands.Cog):
         channel = discord.utils.get(ctx.guild.channels, name='welcome')
         custom_link = await channel.create_invite(unique=True)
         print(f"Generated link {custom_link}")
-        await ctx.send(f"I'm now inviting {user_name}! <@{ctx.author.id}>, I'll be sending you a custom link to forward to {user_name}")
+        await ctx.send(f"I'm now inviting {user_name}! {ctx.author.mention}, I'll be sending you a custom link to forward to {user_name}")
         await ctx.author.send(f"Here is the link for inviting {user_name}: {custom_link}")
         if user_name in self.live_invites: self.live_invites.remove(user_name)
 
