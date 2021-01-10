@@ -26,6 +26,8 @@ class Timer(commands.Cog):
         if idx in self.timer_dict:
             channel = self.bot.get_channel(channel_id)
             await channel.send(f"Timer {idx} finished!")
+            # Send a photo of Mia.
+            await self.bot.get_cog('Events').dog(ctx, "picture")
             del self.timer_dict[idx]
     
     @commands.command(name='start', help='Start a timer')
