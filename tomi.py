@@ -1,7 +1,7 @@
 import discord
 import logging
 from discord.ext import commands
-import os
+import os, sys
 import json
 from spreadsheet import Spreadsheet
 from cache import Cache
@@ -34,17 +34,17 @@ if not os.path.isfile(token_path):
 # Run in the given mode.
 with open(token_path) as f:
     token = json.load(f)['token']
-#os.environ['TOMI_MODE'] = 'production' if args.production else 'test'
 logging.info(f"Now running in {'production' if args.production else 'test'} mode!")
 
 # Create a bot subscribed to all possible events.
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='.', intents=intents)
+bot.is_production = args.production
 
+# Store the objects common across cogs. Note that this can't themselves be cogs
+# since they may be needed in __del__ of individual cogs.
 bot.spreadsheet = Spreadsheet(args.production)
 bot.cache = Cache(args.production)
-bot.invite_cache = {}
-bot.resident_invites = set()
 
 # Load custom modules. For example, timer.py holds timer-related functionality.
 bot.load_extension('timer')
@@ -74,6 +74,7 @@ async def on_command_error(ctx, error):
     else:
         print("on_command_error")
         logging.error(traceback.format_exc())
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
 @bot.event
 async def on_voice_state_update(member, prev, cur):
