@@ -99,10 +99,14 @@ async def on_voice_state_update(member, prev, cur):
                                                           category=cur.channel.category,
                                                           position=cur.channel.position)
                 
-                image_path = os.path.join('images', f"{channel_name}.jpg")
-                if os.path.isfile(image_path):
+                jpg_image_path = os.path.join('images', f"{channel_name}.jpg")
+                png_image_path = os.path.join('images', f"{channel_name}.png")
+                if os.path.isfile(jpg_image_path):
                     await channel.send(f"Welcome to the {channel_name}!",
-                                       file=discord.File('test.jpg'))
+                                       file=discord.File(jpg_image_path))
+                elif os.path.isfile(png_image_path):
+                    await channel.send(f"Welcome to the {channel_name}!",
+                                       file=discord.File(png_image_path))
                 else:
                     await channel.send(f"Welcome to the {channel_name}! There isn't a picture to show, since this room is still under construction. Please send suggestions in the #renovations channel!")
                     
