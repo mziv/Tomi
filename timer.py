@@ -21,7 +21,8 @@ class Timer(commands.Cog):
 
         self.current_idx = 0
 
-    async def timer_alert(self, channel_id, idx, num_min):
+    async def timer_alert(self, ctx, idx, num_min):
+        channel_id = ctx.channel.id
         await asyncio.sleep(60*num_min)
         if idx in self.timer_dict:
             channel = self.bot.get_channel(channel_id)
@@ -46,7 +47,7 @@ class Timer(commands.Cog):
         # Map the index of the timer to its end time.
         self.timer_dict[self.current_idx] = datetime.now() + timedelta(seconds=num_min*60)
 
-        self.bot.loop.create_task(self.timer_alert(ctx.channel.id, self.current_idx, num_min))
+        self.bot.loop.create_task(self.timer_alert(ctx, self.current_idx, num_min))
 
     @commands.command(name='check', help='Check how long is left on the timer')
     async def check_timer(self, ctx, idx: int):
