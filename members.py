@@ -4,6 +4,7 @@ import pandas as pd
 import os.path
 from random import randint
 from datetime import timedelta
+import logging
 
 CSV_LOC = "./memberInfo.csv"
 import asyncio
@@ -58,16 +59,12 @@ async def play_playlist_helper(channel, voice_channel, user, df):
 class Members(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bot.cache_dir = 'cache'
         self.df = pd.read_csv("./memberInfo.csv", index_col='Nickname')
-        self.invite_delay_hours = 24
-        self.live_invites = set()
-        self.inactive_members = {}
-        #self.ping_inactive_interval = timedelta(weeks=10)
-        self.ping_inactive_interval = timedelta(seconds=5)
+        self.invite_delay_hours = 24 if bot.is_production else 0.001
+        self.ping_inactive_interval = timedelta(weeks=2)
 
     async def ping_inactive(self, delay):
-        await asyncio.sleep(delay.seconds)
+        await asyncio.sleep(delay.total_seconds())
         while True:
             # Ping each person, waiting the appropriate interval between pings.
             for guild_id, member_ids in self.inactive_members.items():
@@ -76,8 +73,8 @@ class Members(commands.Cog):
                     inviter_id = self.bot.spreadsheet.get_inviter(member_id)
                     if inviter_id is not None:
                         invitee = self.bot.get_user(member_id)
-                        msg = f"It's been a while since {invitee.name} has been active in the co-op. They were originally invited by {inviter.name}. Would you mind checking in on them?"
                         inviter = self.bot.get_user(inviter_id)
+                        msg = f"It's been a while since {invitee.name} has been active in the co-op. They were originally invited by {inviter.name}. Would you mind checking in on them?"
                         # TODO(rachel-1): just DM myself for testing purposes.
                         rachel = self.bot.get_user(691726683115487263)
                         await rachel.create_dm()
@@ -85,7 +82,8 @@ class Members(commands.Cog):
                         #await inviter.create_dm()
                         #await inviter.dm_channel.send(msg)
 
-                    await asyncio.sleep(self.ping_inactive_interval.seconds)
+                    print("self.ping_inactive_interval.seconds: ", self.ping_inactive_interval.total_seconds()) # TODO - remove debug statement
+                    await asyncio.sleep(delay.total_seconds())
 
                 # Reset the list of who is inactive.
                 guild = self.bot.get_guild(guild_id)
@@ -95,20 +93,38 @@ class Members(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         data = self.bot.cache.get_data('members')
+
+        # Set up the process for pinging inactive members.
         if 'inactive_members' in data:
             self.inactive_members = {int(guild_id):member_ids for (guild_id, member_ids) in data['inactive_members'].items()}
         else:
             # Otherwise set all members as inactive and reset the timer.
+            self.inactive_members = {}
             for guild in self.bot.guilds:
                 self.inactive_members[guild.id] = [member.id for member in guild.members]
 
         delay = data.get('time_till_ping_inactive', self.ping_inactive_interval)
         self.bot.loop.create_task(self.ping_inactive(delay))
 
+        # TODO(rachel-1): maybe this doesn't even need to be reloaded, but can
+        # be regenerated instead?
+        # The invites across servers:
+        # {guild_id => {invite_code => num_uses, ...}, ...}
+        self.invite_cache = data.get('invite_cache', {})
+        # Convert keys from strings back to ints
+        self.invite_cache = {int(guild_id):invites for (guild_id, invites) in self.invite_cache.items()}
+        
+        # Invites that should make the invitee into a permanent resident:
+        # {invitee_name => (inviter_id, invite_code), ...}
+        self.resident_invites = data.get('resident_invites', {})
+        
 
     def __del__(self):
         self.bot.cache.save_data('members',
-                        inactive_members=self.inactive_members)
+                                 inactive_members=self.inactive_members,
+                                 invite_cache=self.invite_cache,
+                                 resident_invites=self.resident_invites
+        )
         
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -124,20 +140,23 @@ class Members(commands.Cog):
             self.inactive_members[member.guild.id].remove(member)
 
     @commands.Cog.listener()
-    async def on_member_join(member):
+    async def on_member_join(self, member):
+        print("self.invite_cache: ", self.invite_cache) # TODO - remove debug statement
         await member.create_dm()
 
         # Check which invite code has gone up in uses since we last cached.
         async def get_invite_code_for_user():
-            invites_after = await member.guild.invites()
-            if member.guild.id not in bot.invite_cache:
-                logging.error("Invite code not found for user!")
-                logging.info("Invite cache: ", bot.invite_cache)
-                logging.info("Current invites: ", invites_after)
+            if member.guild.id not in self.invite_cache:
+                logging.error(f"The invite cache doesn't have guild {member.guild.id}!")
+                logging.info("Invite cache: ", self.invite_cache)
                 return None
-            for invite in invites_after:
-                cached_invite = bot.invite_cache[member.guild.id].get(invite.code)
-                if cached_invite is not None and invite.uses > cached_invite.uses:
+            for invite in await member.guild.invites():
+                if invite.code not in self.invite_cache[member.guild.id]:
+                    logging.error(f"{invite.code} does not exist in the cache!")
+                    logging.info("Invite cache: ", self.invite_cache)
+                    return None
+                prev_num_uses = self.invite_cache[member.guild.id][invite.code]
+                if invite.uses > prev_num_uses:
                     return invite.code
 
             return None
@@ -150,25 +169,28 @@ class Members(commands.Cog):
         used_invite_code = await get_invite_code_for_user()
         logging.info(f"{member.name} has joined with {used_invite_code}")
 
-        for user, invite_code in bot.resident_invites:
+        for invitee_name, (inviter_id, invite_code) in self.resident_invites.items():
             # Check if this invite code was one of the ones meant for residents.
             if used_invite_code == invite_code:
                 logging.info("The invite code is for residents")
-                # Delete invite now that it isn't needed (and update cache)
-                bot.resident_invites.remove((user, invite_code))
-                await bot.invite_cache[member.guild.id][invite_code].delete()
-                bot.invite_cache[member.guild.id] = {}
-                invites = await member.guild.invites()
-                for invite in invites:
-                    bot.invite_cache[member.guild.id][invite.code] = invite
-
+                
                 # Give user the resident role and welcome them appropriately.
                 role = discord.utils.get(member.guild.roles, name="resident")
                 await member.add_roles(role)
                 await member.dm_channel.send(resident_msg)
 
                 # Track who invited the user.
-                bot.spreadsheet.add_invitee(user, member)
+                inviter = self.bot.get_user(inviter_id)
+                self.bot.spreadsheet.add_invitee(inviter, member)
+
+                # Delete resident invite and update invite cache.
+                del self.resident_invites[invitee_name]
+                invite = discord.utils.get(await member.guild.invites(), id=invite_code)
+                await invite.delete()
+                self.invite_cache[member.guild.id] = {}
+                for invite in await member.guild.invites():
+                    self.invite_cache[member.guild.id][invite.code] = invite.uses
+
                 return
 
         # Send just the visitor message if the user shouldn't become a resident.
@@ -185,7 +207,7 @@ class Members(commands.Cog):
         # Prevent the link from being generated.
         user_name = ' '.join(args)
         try:
-            self.live_invites.remove(user_name)
+            del self.resident_invites[user_name]
         except KeyError:
             await ctx.send(f"'{user_name}' was not being invited. Maybe the spelling/capitalization is off?")
         else:    
@@ -198,15 +220,13 @@ class Members(commands.Cog):
         print(f"Generated link {custom_link}")
         await ctx.send(f"I'm now inviting {user_name}! {ctx.author.mention}, I'll be sending you a custom link to forward to {user_name}")
         await ctx.author.send(f"Here is the link for inviting {user_name}: {custom_link}")
-        if user_name in self.live_invites: self.live_invites.remove(user_name)
 
         # Cache invite information for role assignment logic when the new member joins.
-        self.bot.resident_invites.add((ctx.author, custom_link.code))
-        if ctx.guild.id not in self.bot.invite_cache:
-            self.bot.invite_cache[ctx.guild.id] = {}
-        invites = await ctx.guild.invites()
-        for invite in invites:
-            self.bot.invite_cache[ctx.guild.id][invite.code] = invite
+        self.resident_invites[user_name] = (ctx.author.id, custom_link.code)
+        if ctx.guild.id not in self.invite_cache:
+            self.invite_cache[ctx.guild.id] = {}
+        for invite in await ctx.guild.invites():
+            self.invite_cache[ctx.guild.id][invite.code] = invite.uses
             
     @commands.command(name='invite', help='Propose inviting a certain person')        
     async def begin_invite(self, ctx, *args):
@@ -219,13 +239,15 @@ class Members(commands.Cog):
 
         # Trigger the comment period for a given proposed invite.
         await ctx.send(f"The invite process for {user_name} has begun! You now have {self.invite_delay_hours} hours to use .feedback to anonymously veto the person for any reason before they are automatically invited as a permanent resident.")
-        self.live_invites.add(user_name)
+        self.resident_invites[user_name] = (ctx.author, None)
 
+        # TODO(rachel-1): the server should not be restarted during this window,
+        # since the caching won't help.
         # Wait the appropriate number of hours.
         await asyncio.sleep(60*60*self.invite_delay_hours)
 
         # If the invite has been cancelled, don't do anything.
-        if user_name not in self.live_invites: return
+        if user_name not in self.resident_invites: return
 
         # Handle the actual generation of the invite link.
         await self._invite(ctx, user_name)
@@ -326,7 +348,6 @@ class Members(commands.Cog):
         await ctx.send(f"Updated {ctx.author.name} with {field}: {value} ")
         self.df.to_csv("./memberInfo.csv")
 
-   
 def setup(bot):
     bot.add_cog(Members(bot))
 
