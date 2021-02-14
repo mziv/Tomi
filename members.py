@@ -185,6 +185,11 @@ class Members(commands.Cog):
                 # Track who invited the user.
                 inviter = self.bot.get_user(inviter_id)
                 self.bot.spreadsheet.add_invitee(inviter, member)
+                try:
+                    await inviter.dm_channel.send(f"Your friend {invitee_name} just showed up! Why don't you give them a tour?")
+                except Exception:
+                    # This part isn't a huge deal just yet.
+                    pass
 
                 # Delete resident invite and update invite cache.
                 del self.resident_invites[invitee_name]
