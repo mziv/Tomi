@@ -63,6 +63,7 @@ class Rooms(commands.Cog):
                 elif role not in member.roles:
                     print(f"Adding {member.display_name} to {role.name}")
                     await member.add_roles(role)
+                    channel = discord.utils.get(guild.channels, name=cur.channel.name.lower())
                     await channel.send(f"Hi {member.display_name}!")
                     comms_channel = discord.utils.get(guild.channels, name="comms")
                     if comms_channel is not None:
